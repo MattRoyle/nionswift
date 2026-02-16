@@ -616,6 +616,31 @@ def draw_marker(drawing_context: DrawingContext.DrawingContext, p: Geometry.Floa
             drawing_context.stroke_style = stroke
             drawing_context.stroke()
 
+def draw_triangle(drawing_context: DrawingContext.DrawingContext, a: Geometry.FloatPoint, b: Geometry.FloatPoint, c: Geometry.FloatPoint, fill: typing.Optional[str] = None) -> None:
+    with drawing_context.saver():
+        drawing_context.fill_style = fill
+        drawing_context.begin_path()
+        drawing_context.move_to(a.x, a.y)
+        drawing_context.line_to(b.x, b.y)
+        drawing_context.line_to(c.x, c.y)
+        drawing_context.line_to(a.x, a.y)
+        drawing_context.close_path()
+        drawing_context.stroke()
+        drawing_context.fill()
+
+def draw_arrow_between(drawing_context: DrawingContext.DrawingContext, start_pos: Geometry.FloatPoint, end_pos: Geometry.FloatPoint, fill: typing.Optional[str] = None,) -> None:
+    direction = end_pos - start_pos
+    perp = Geometry.FloatPoint(y=direction.x, x=-direction.y)
+    arrow = perp - direction
+    norm = (arrow / math.hypot(arrow.x, arrow.y)) * 5
+    norm1 = Geometry.FloatPoint(y=norm.x, x=-norm.y)
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        drawing_context.move_to(start_pos.x, start_pos.y)
+        drawing_context.line_to(end_pos.x, end_pos.y)
+        drawing_context.stroke()
+        drawing_context.close_path()
+        draw_triangle(drawing_context, end_pos, end_pos + norm, end_pos + norm1, fill)
 
 class LineGraphBackgroundCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LineGraphAxes], draw_grid: bool, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
@@ -999,9 +1024,12 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         right_text = region.right_text
                         middle_text = region.middle_text
                         if middle_text and region.style != "tag":
-                            drawing_context.text_align = "center"
+                            drawing_context.text_align = "left"
                             drawing_context.text_baseline = "bottom"
-                            drawing_context.fill_text(middle_text, mid_x, level - 6)
+                            text_pos = Geometry.FloatPoint(level - 25, right + 25)
+                            end_pos = Geometry.FloatPoint(level - 15, right + 4)
+                            draw_arrow_between(drawing_context, text_pos, end_pos, region_color)
+                            drawing_context.fill_text(f"width = {middle_text}", text_pos.x, text_pos.y - 5)
                         if left_text and region.style != "tag":
                             drawing_context.text_align = "right"
                             drawing_context.text_baseline = "center"
