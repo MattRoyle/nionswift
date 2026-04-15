@@ -2078,58 +2078,6 @@ class TestWorkspaceClass(unittest.TestCase):
         test_case = SplitCase(selected_workspace_panels_indices=1, expected_split_shape=(3, 2), total_expected_panels=7, selected_data_items_indices=[1, 2, 3, 4], total_data_items=6, workspace_data_items_indices=[(0, 5), (1, 0)], initial_layout_id="2x1")
         self.run_split_test(test_case, self.perform_split_selection)
 
-    def perform_new_workspace_from_selection(self, document_controller: DocumentController.DocumentController) -> None:
-        """The perform_func to be passed into the run_split_test function for the workspace.new_workspace_from_selection tests.
-
-        Since invoke would bring up a text input dialog for the name, the context needs to be setup with the name already defined
-        then execute the action if it is enabled.
-        """
-        action_context = document_controller._get_action_context()
-        new_workspace_action = Window.actions["workspace.new_workspace_from_selection"]
-        new_workspace_action.set_string_property(action_context, "name", "New Workspace")
-        if new_workspace_action.is_enabled(action_context):
-            _ = new_workspace_action.execute(action_context)
-
-    def test_new_workspace_disabled_no_item(self):  # No selected data items, no change
-        test_case = SplitCase(selected_workspace_panels_indices=0, selected_data_items_indices=[], total_data_items=0, initial_layout_id="2x1")
-        self.run_disabled_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_disabled_too_many_items(self):  # Too many selected items, no change
-        test_case = SplitCase(selected_workspace_panels_indices=0, selected_data_items_indices=[x for x in range(0, 102)], total_data_items=101, initial_layout_id="2x1")
-        self.run_disabled_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_disabled_too_many_total(self):  # Total selected data items (6 display panel items, 95 data panel items) is too large, no change
-        test_case = SplitCase(selected_workspace_panels_indices=[i for i in range(0, 6)], selected_data_items_indices=[x for x in range(6, 102)], total_data_items=101, initial_layout_id="3x2", workspace_data_items_indices=[(i, i) for i in range(0, 6)])
-        self.run_disabled_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_single_item(self):  # 1 data item selected becomes a workspace with that item
-        test_case = SplitCase(selected_workspace_panels_indices=0, selected_data_items_indices=[0], total_expected_panels=1, total_data_items=1, initial_layout_id="2x1", expected_split_shape=(1, 1))
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_five_items(self):  # 5 data items selected becomes a workspace split 3x2
-        test_case = SplitCase(selected_workspace_panels_indices=0, selected_data_items_indices=[0, 1, 2, 3, 4], total_expected_panels=6, total_data_items=5, initial_layout_id="2x1", expected_split_shape=(3, 2))
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_panel_item(self):  # 1 workspace panel item selected becomes a workspace with that item
-        test_case = SplitCase(selected_workspace_panels_indices=[0], selected_data_items_indices=[], total_expected_panels=1, total_data_items=1, initial_layout_id="2x1", expected_split_shape=(1, 1), workspace_data_items_indices=[(0, 0)])
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_five_panel_items(self):  # 5 data panel items selected becomes a workspace split 3x2
-        test_case = SplitCase(selected_workspace_panels_indices=[0, 1, 2, 3, 4], selected_data_items_indices=[], total_expected_panels=6, total_data_items=5, initial_layout_id="6x1", expected_split_shape=(3, 2), workspace_data_items_indices=[(i, i) for i in range(0, 5)])
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_two_in_mixed_selection(self):  # 1 data panel item and 1 display panel item selected becomes a workspace split 2x1
-        test_case = SplitCase(selected_workspace_panels_indices=[0], selected_data_items_indices=[0], total_expected_panels=2, total_data_items=2, initial_layout_id="6x1", expected_split_shape=(2, 1), workspace_data_items_indices=[(0, 1)])
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_five_in_mixed_selection(self):  # 2 data panel items and 3 display panel items selected becomes a workspace split 3x2
-        test_case = SplitCase(selected_workspace_panels_indices=[i for i in range(0, 3)], selected_data_items_indices=[0, 1], total_expected_panels=6, total_data_items=5, initial_layout_id="3x1", expected_split_shape=(3, 2), workspace_data_items_indices=[(i - 2, i) for i in range(2, 5)])
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
-    def test_new_workspace_empty_panels_in_selection(self):  # 4 data panel items and 4 display panel items selected becomes a workspace split 4x2, the empty display panels that are selected are not used
-        test_case = SplitCase(selected_workspace_panels_indices=[0, 1, 2, 3, 4, 5], selected_data_items_indices=[4, 5, 6, 7], total_expected_panels=8, total_data_items=8, initial_layout_id="6x1", expected_split_shape=(4, 2), workspace_data_items_indices=[(i, i) for i in range(0, 4)])
-        self.run_split_test(test_case, self.perform_new_workspace_from_selection)
-
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

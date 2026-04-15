@@ -94,59 +94,6 @@ class SplitFromSelectionCommand(Undo.UndoableCommand):
         self.__workspace_controller.reconstruct(self.__new_layout)
 
 
-class NewWorkspaceFromSelectionCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, name: str,
-                 selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
-        super().__init__("New Workspace From Selection")
-        self.__workspace_controller = workspace_controller
-        self.__workspace_layout_uuid = workspace_controller._workspace.uuid
-        self.__new_name = name
-        self.__new_layout: typing.Optional[Persistence.PersistentDictType] = None
-        self.__new_workspace_id: typing.Optional[str] = None
-        self.__selection = selection
-        self.__layout_shape = layout_shape
-        self.__undo_command: Undo.UndoableCommand | None = None
-
-        self.initialize()
-
-    def _get_modified_state(self) -> typing.Any:
-        return self.__workspace_controller._project.modified_state
-
-    def _set_modified_state(self, modified_state: typing.Any) -> None:
-        self.__workspace_controller._project.modified_state = modified_state
-
-    def _perform(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
-        self.__workspace_controller._change_workspace(new_workspace)
-
-        selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
-        # Since the only display panel will be the selected one, display_panels can just be a list with that inside
-        # apply_layouts mutates the workspace_controller.display_panels so using it will cause recursion
-        # The context.display_panels is no longer valid due to the creation of a new workspace
-        assert selected_display_panel
-        display_panels = [selected_display_panel]
-        split_command = SplitFromSelectionCommand(self.__workspace_controller, self.__selection, selected_display_panel, display_panels, self.__layout_shape)
-        split_command.perform()
-        self.__undo_command = split_command
-
-    def _undo(self) -> None:
-        assert self.__undo_command is not None
-        self.__undo_command.undo()
-        new_workspace = self.__workspace_controller._workspace
-        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-        assert workspace_layout
-        self.__new_layout = self.__workspace_controller._workspace.layout
-        self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
-        self.__workspace_controller._change_workspace(workspace_layout)
-        self.__workspace_controller._project.remove_item("workspaces", new_workspace)
-
-    def _redo(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
-        self.__workspace_controller._change_workspace(new_workspace)
-        assert self.__undo_command is not None
-        self.__undo_command.redo()
-
-
 class CreateWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace, name: str) -> None:
         super().__init__("Create Workspace")
