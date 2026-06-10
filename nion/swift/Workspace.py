@@ -761,6 +761,8 @@ class Workspace:
             return "copy"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+            return "copy"
         return "ignore"
 
     def handle_drag_leave(self, display_panel: DisplayPanel.DisplayPanel) -> str:
@@ -773,47 +775,49 @@ class Workspace:
             return "copy"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+            return "copy"
         return "ignore"
 
     def should_handle_drag_for_mime_data(self, mime_data: UserInterface.MimeData) -> bool:
-        return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
+        return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE) or mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE)
 
     def handle_drop(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
-        document_model = self.document_model
+        source_details: dict[str, typing.Any] | None = None
+        source_display_item: DisplayItem.DisplayItem | None = None
+        source_display_items: list[DisplayItem.DisplayItem] = list()
+        return_type = "copy"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-            display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
-            if display_item and display_panel.handle_drop_display_item(region, display_item):
-                pass  # already handled
+            source_display_item, source_details = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
+            return_type = "move"
+        elif mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+            source_display_items = MimeTypes.mime_data_get_display_items(mime_data, self.document_model)
+        elif mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+            source_display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
+        elif mime_data.has_format("text/uri-list"):
+            index = len(self.document_model.data_items)
+            display_items = self.document_controller.receive_files(list(reversed(mime_data.file_paths)), None, index)
+            if len(display_items) == 1:
+                source_display_item = display_items[0]
+            elif len(display_items) > 1:
+                source_display_items = list(display_items)
+
+        if source_display_item:
+            if display_panel.handle_drop_display_item(region, source_display_item):
+                pass  # If handle_drop_display_item returns true then the drop was handled by the function
             elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                command = self.insert_display_panel(display_panel, region, None, d)
+                display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
+                command = self.insert_display_panel(display_panel, region, display_item, source_details)
                 self.document_controller.push_undo_command(command)
             else:
-                command = self.__replace_displayed_display_item(display_panel, None, d)
+                command = self.__replace_displayed_display_item(display_panel, source_display_item)
                 self.document_controller.push_undo_command(command)
-            return "move"
-        display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
-        if display_item:
-            if display_panel.handle_drop_display_item(region, display_item):
-                pass  # already handled
-            elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                command = self.insert_display_panel(display_panel, region, display_item)
-                self.document_controller.push_undo_command(command)
-            else:
-                command = self.__replace_displayed_display_item(display_panel, display_item)
-                self.document_controller.push_undo_command(command)
-            return "copy"
-        if mime_data.has_format("text/uri-list"):
-            index = len(document_model.data_items)
-            display_items = self.document_controller.receive_files(mime_data.file_paths, None, index)
-            display_item = display_items[0] if len(display_items) > 0 else None
-            if display_item:
-                if region == "right" or region == "left" or region == "top" or region == "bottom":
-                    command = self.insert_display_panel(display_panel, region, display_item)
-                    self.document_controller.push_undo_command(command)
-                else:
-                    command = self.__replace_displayed_display_item(display_panel, display_item)
-                    self.document_controller.push_undo_command(command)
-            return "copy"
+            return return_type
+        elif source_display_items:
+            command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
+            self.split_panel_and_insert_display_items(display_panel, source_display_items)
+            self.document_controller.push_undo_command(command)
+            return return_type
         return "ignore"
 
     def _replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
