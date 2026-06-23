@@ -19,7 +19,6 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
-from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
@@ -719,7 +718,7 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
-        self.text_properties = {"label":TextProperties()}
+        self.text_properties = {"label":TextProperties(background_color="rgba(255, 255, 255, 0.6)", box_outline_color="#F80", padding=4)}
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
@@ -1050,9 +1049,10 @@ class GraphicRenderer:
         return False
 
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        if self.label:
+        label_properties = self.text_properties["label"]
+        if self.label and self.is_label_visible(label_properties.visibility, is_selected, is_focused):
             position = self.label_position(mapping, ui_settings.get_font_metrics(self.label_font, self.label), self.label_padding) or Geometry.FloatPoint()
-            draw_text(ctx, ui_settings, self.label, self.text_properties["label"], position, is_selected, is_focused)
+            draw_text(ctx, ui_settings, self.label, label_properties, position, is_selected, is_focused)
 
 
 class MissingGraphic(Graphic):
@@ -2062,6 +2062,15 @@ class IntervalGraphic(Graphic):
         self.text_properties.setdefault("middle", width_text_properties)
         self.text_properties.setdefault("left", left_text_properties)
         self.text_properties.setdefault("right", right_text_properties)
+
+    @property
+    def middle(self) -> TextProperties:
+        return self.text_properties["middle"]
+
+    @middle.setter
+    def middle(self, value: TextProperties) -> None:
+        self.text_properties.setdefault("middle", value)
+        self.notify_property_changed("middle")
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
@@ -3299,7 +3308,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
 class TextProperties:
     def __init__(self, visibility: str = "always", font: str = "normal 11px serif",
                  stroke_color: str = "black", background_color: str | None = None,
-                 box_outline_color: str | None = None, baseline: str = "center", align: str = "center") -> None:
+                 box_outline_color: str | None = None, baseline: str = "center", align: str = "center", padding: int = 0) -> None:
         self.visibility = visibility
         self.font = font
         self.stroke_color = stroke_color
@@ -3307,6 +3316,7 @@ class TextProperties:
         self.outline_color = box_outline_color
         self.baseline = baseline
         self.align = align
+        self.padding = padding
 
     def is_visible(self, selected: bool, focused: bool) -> bool:
         if self.visibility == "always":
@@ -3317,7 +3327,7 @@ class TextProperties:
             return focused
         return False
 
-def draw_text(ctx: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, text: str, properties: TextProperties, position: Geometry.FloatPoint, is_selected: bool, is_focused: bool) -> None:
+def draw_text(ctx: DrawingContextLike, ui_settings: UISettings.UISettings, text: str, properties: TextProperties, position: Geometry.FloatPoint, is_selected: bool, is_focused: bool) -> None:
     if not properties.is_visible(is_selected, is_focused):
         return
 
@@ -3350,7 +3360,7 @@ def draw_text(ctx: DrawingContext.DrawingContext, ui_settings: UISettings.UISett
         else:  # center
             rect_left = x - width / 2.0
 
-        return Geometry.FloatRect.from_tlhw(rect_top, rect_left, height, width)
+        return Geometry.FloatRect.from_tlhw(rect_top - properties.padding, rect_left - properties.padding, height + 2 * properties.padding, width + 2 * properties.padding)
 
     with ctx.saver():
         y, x = position
@@ -3371,7 +3381,7 @@ def draw_text(ctx: DrawingContext.DrawingContext, ui_settings: UISettings.UISett
             ctx.fill()
 
         if properties.outline_color is not None:
-            ctx.stroke_style = properties.background_color
+            ctx.stroke_style = properties.outline_color
             ctx.stroke()
 
         ctx.fill_style = properties.stroke_color
