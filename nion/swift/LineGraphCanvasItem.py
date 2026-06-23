@@ -606,39 +606,27 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     if region_selected:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
-                        drawing_context.font = self.font
-                        left_text = region.left_text
-                        right_text = region.right_text
-                        middle_text = region.middle_text
-
-                        if middle_text and region.style != "tag":
-                            middle_text_properties = region.renderer.text_properties.get("middle")
-                            position = Geometry.FloatPoint(level - self.font_size_metric.height, mid_x)
-                            Graphics.draw_text(drawing_context, self.__ui_settings, middle_text, middle_text_properties, position, region_selected, self.__is_focused)
-                            ##_draw_label_with_background(middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom")
-                        drawing_context.fill_style = region_color
-                        if left_text:
-                            left_text_properties = region.renderer.text_properties.get("left")
-                            position = Geometry.FloatPoint(level, left - 5)
-                            Graphics.draw_text(drawing_context, self.__ui_settings, left_text, left_text_properties, position, region_selected, self.__is_focused)
-                            # _draw_label_with_background(left_text, left - 5, level, "right", "middle")
-                        if right_text:
-                            right_text_properties = region.renderer.text_properties.get("right")
-                            position = Geometry.FloatPoint(level, right + 5)
-                            Graphics.draw_text(drawing_context, self.__ui_settings, right_text, right_text_properties, position, region_selected, self.__is_focused)
-
-                            #_draw_label_with_background(right_text, right + 5, level, "left", "middle")
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
 
-                    label = region.label
-                    if label:
+                    drawing_context.font = self.font
+                    drawing_context.fill_style = region_color
+                    if region.middle_text and region.style != "tag":
+                        middle_text_properties = region.renderer.text_properties.get("middle")
+                        position = Geometry.FloatPoint(level - self.font_size_metric.height, mid_x)
+                        Graphics.draw_text(drawing_context, self.__ui_settings, region.middle_text, middle_text_properties, position, region_selected, self.__is_focused)
+                    if region.left_text:
+                        left_text_properties = region.renderer.text_properties.get("left")
+                        position = Geometry.FloatPoint(level, left - 5)
+                        Graphics.draw_text(drawing_context, self.__ui_settings, region.left_text, left_text_properties, position, region_selected, self.__is_focused)
+                    if region.right_text:
+                        right_text_properties = region.renderer.text_properties.get("right")
+                        position = Geometry.FloatPoint(level, right + 5)
+                        Graphics.draw_text(drawing_context, self.__ui_settings, region.right_text, right_text_properties, position, region_selected, self.__is_focused)
+                    if region.label:
                         label_text_properties = region.renderer.text_properties.get("label")
                         position = Geometry.FloatPoint(level + self.font_size_metric.height, mid_x)
-                        Graphics.draw_text(drawing_context, self.__ui_settings, label, label_text_properties, position, region_selected, self.__is_focused)
-
-                        #region.renderer.draw_label(drawing_context, self.__ui_settings, None, region_selected, self.__is_focused)
-                        #_draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top")
+                        Graphics.draw_text(drawing_context, self.__ui_settings, region.label, label_text_properties, position, region_selected, self.__is_focused)
                     drawing_context.close_path()
 
 

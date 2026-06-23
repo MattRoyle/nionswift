@@ -2059,18 +2059,11 @@ class IntervalGraphic(Graphic):
         width_text_properties = TextProperties(visibility="selected", stroke_color="black", background_color="#99ffffff", font="12px", align="center", baseline="bottom")
         left_text_properties = TextProperties(visibility="selected", stroke_color="black", background_color="#99ffffff", font="12px", align="right", baseline="middle")
         right_text_properties = TextProperties(visibility="selected", stroke_color="black", background_color="#99ffffff", font="12px", align="left", baseline="middle")
+        label_text_properties = TextProperties(visibility="always", stroke_color="black", background_color="#99ffffff", font="12px", align="center", baseline="top")
         self.text_properties.setdefault("middle", width_text_properties)
         self.text_properties.setdefault("left", left_text_properties)
         self.text_properties.setdefault("right", right_text_properties)
-
-    @property
-    def middle(self) -> TextProperties:
-        return self.text_properties["middle"]
-
-    @middle.setter
-    def middle(self, value: TextProperties) -> None:
-        self.text_properties.setdefault("middle", value)
-        self.notify_property_changed("middle")
+        self.text_properties["label"] = label_text_properties
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
