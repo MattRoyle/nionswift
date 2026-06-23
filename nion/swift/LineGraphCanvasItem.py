@@ -27,7 +27,7 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Undo
-from nion.swift.model import DisplayItem
+from nion.swift.model import DisplayItem, Graphics
 from nion.swift.model import DocumentModel
 from nion.swift.model import LinePlotDisplay
 from nion.swift.model import UISettings
@@ -564,55 +564,6 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 px = c * data_scale
                 return canvas_size.width * (px - data_left) / (data_right - data_left)
 
-            def _get_text_rectangle(text: str, x: float, y: float, baseline: str = "center", align: str = "center", margin: int = 1) -> Geometry.FloatRect:
-                """Gets the rectangle that surrounds a text string
-
-                The positions returned are offset by x, y.
-                The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise middle
-                Margin is added to the x-axis
-                """
-                metrics = self.__ui_settings.get_font_metrics(self.font, text)
-                width = float(metrics.width) + 2 * margin  # Margin around the text for legibility
-                ascent = float(metrics.ascent)
-                descent = float(metrics.descent)
-                height = ascent + descent
-
-                if baseline == "top":
-                    y_pos = y + ascent
-                elif baseline == "bottom":
-                    y_pos = y  # There is a bug in nionui-tool that means 'bottom' baseline is actually alphabetic. Should be - descent
-                elif baseline == "middle":
-                    y_pos = y + descent
-                else:  # alphabetic or ideographic
-                    y_pos = y
-                rect_top = y_pos - ascent
-                if align == "right":
-                    rect_left = x - width + margin
-                elif align == "left":
-                    rect_left = x - margin
-                else:  # center
-                    rect_left = x - width / 2.0
-
-                return Geometry.FloatRect.from_tlhw(rect_top, rect_left, height, width)
-
-            def _draw_label_with_background(label_text: str, label_x: float, label_y: float, text_align: str, text_baseline: str) -> None:
-                with drawing_context.saver():
-                    drawing_context.text_baseline = text_baseline
-                    drawing_context.text_align = text_align
-                    drawing_context.fill_style = self.text_background_color
-                    label_rect = _get_text_rectangle(label_text, label_x, label_y, text_baseline, text_align)
-
-                    # Draw the text background
-                    drawing_context.move_to(label_rect.left, label_rect.top)
-                    drawing_context.line_to(label_rect.right, label_rect.top)
-                    drawing_context.line_to(label_rect.right, label_rect.bottom)
-                    drawing_context.line_to(label_rect.left, label_rect.bottom)
-                    drawing_context.line_to(label_rect.left, label_rect.top)
-                    drawing_context.fill()
-
-                    drawing_context.fill_style = self.label_text_color
-                    drawing_context.fill_text(label_text, label_x, label_y)
-
             for region in regions:
                 left_channel, right_channel = region.channels
                 region_selected = region.selected
@@ -659,19 +610,35 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         left_text = region.left_text
                         right_text = region.right_text
                         middle_text = region.middle_text
-                        if middle_text and region.style != "tag" and region.is_label_visible:
-                            _draw_label_with_background(middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom")
+
+                        if middle_text and region.style != "tag":
+                            middle_text_properties = region.renderer.text_properties.get("middle")
+                            position = Geometry.FloatPoint(level - self.font_size_metric.height, mid_x)
+                            Graphics.draw_text(drawing_context, self.__ui_settings, middle_text, middle_text_properties, position, region_selected, self.__is_focused)
+                            ##_draw_label_with_background(middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom")
                         drawing_context.fill_style = region_color
-                        if left_text and region.is_label_visible:
-                            _draw_label_with_background(left_text, left - 5, level, "right", "middle")
-                        if right_text and region.is_label_visible:
-                            _draw_label_with_background(right_text, right + 5, level, "left", "middle")
+                        if left_text:
+                            left_text_properties = region.renderer.text_properties.get("left")
+                            position = Geometry.FloatPoint(level, left - 5)
+                            Graphics.draw_text(drawing_context, self.__ui_settings, left_text, left_text_properties, position, region_selected, self.__is_focused)
+                            # _draw_label_with_background(left_text, left - 5, level, "right", "middle")
+                        if right_text:
+                            right_text_properties = region.renderer.text_properties.get("right")
+                            position = Geometry.FloatPoint(level, right + 5)
+                            Graphics.draw_text(drawing_context, self.__ui_settings, right_text, right_text_properties, position, region_selected, self.__is_focused)
+
+                            #_draw_label_with_background(right_text, right + 5, level, "left", "middle")
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
 
                     label = region.label
-                    if label and region.is_label_visible:
-                        _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top")
+                    if label:
+                        label_text_properties = region.renderer.text_properties.get("label")
+                        position = Geometry.FloatPoint(level + self.font_size_metric.height, mid_x)
+                        Graphics.draw_text(drawing_context, self.__ui_settings, label, label_text_properties, position, region_selected, self.__is_focused)
+
+                        #region.renderer.draw_label(drawing_context, self.__ui_settings, None, region_selected, self.__is_focused)
+                        #_draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top")
                     drawing_context.close_path()
 
 

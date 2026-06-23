@@ -19,6 +19,7 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
+from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
@@ -687,7 +688,6 @@ class GraphicAttributeEnum(enum.Enum):
     FOURIER_MASK = 'fourier'
 
 
-
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Persistence.PersistentObject):
     @property
@@ -719,7 +719,7 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
-        self.label_visibility = "always"
+        self.text_properties = {"label":TextProperties()}
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
@@ -1031,7 +1031,7 @@ class GraphicRenderer:
         self.is_position_locked = graphic.is_position_locked
         self.is_shape_locked = graphic.is_shape_locked
         self.is_rotation_locked = graphic.is_rotation_locked
-        self.label_visibility = graphic.label_visibility
+        self.text_properties = graphic.text_properties
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         raise NotImplementedError()
@@ -1050,34 +1050,9 @@ class GraphicRenderer:
         return False
 
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        label = self.label
-        if self.is_label_visible(self.label_visibility, is_selected, is_focused):
-            assert label is not None
-            padding = self.label_padding
-            font = self.label_font
-            font_metrics = ui_settings.get_font_metrics(font, label)
-            text_pos = self.label_position(mapping, font_metrics, padding)
-            if text_pos:
-                with ctx.saver():
-                    ctx.begin_path()
-                    ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding,
-                                text_pos.y - font_metrics.height * 0.5 - padding)
-                    ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
-                                text_pos.y - font_metrics.height * 0.5 - padding)
-                    ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
-                                text_pos.y + font_metrics.height * 0.5 + padding)
-                    ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
-                                text_pos.y + font_metrics.height * 0.5 + padding)
-                    ctx.close_path()
-                    ctx.fill_style = "rgba(255, 255, 255, 0.6)"
-                    ctx.fill()
-                    ctx.stroke_style = self.used_stroke_style
-                    ctx.stroke()
-                    ctx.font = font
-                    ctx.text_baseline = "middle"
-                    ctx.text_align = "center"
-                    ctx.fill_style = "#000"
-                    ctx.fill_text(label, text_pos.x, text_pos.y)
+        if self.label:
+            position = self.label_position(mapping, ui_settings.get_font_metrics(self.label_font, self.label), self.label_padding) or Geometry.FloatPoint()
+            draw_text(ctx, ui_settings, self.label, self.text_properties["label"], position, is_selected, is_focused)
 
 
 class MissingGraphic(Graphic):
@@ -2081,7 +2056,12 @@ class IntervalGraphic(Graphic):
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
         self._default_drag_part = "end"
-        self.label_visibility = "focus"
+        width_text_properties = TextProperties(visibility="selected", stroke_color="black", background_color="#99ffffff", font="12px", align="center", baseline="bottom")
+        left_text_properties = TextProperties(visibility="selected", stroke_color="black", background_color="#99ffffff", font="12px", align="right", baseline="middle")
+        right_text_properties = TextProperties(visibility="selected", stroke_color="black", background_color="#99ffffff", font="12px", align="left", baseline="middle")
+        self.text_properties.setdefault("middle", width_text_properties)
+        self.text_properties.setdefault("left", left_text_properties)
+        self.text_properties.setdefault("right", right_text_properties)
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
@@ -3314,6 +3294,89 @@ class LatticeGraphicRenderer(GraphicRenderer):
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
+
+
+class TextProperties:
+    def __init__(self, visibility: str = "always", font: str = "normal 11px serif",
+                 stroke_color: str = "black", background_color: str | None = None,
+                 box_outline_color: str | None = None, baseline: str = "center", align: str = "center") -> None:
+        self.visibility = visibility
+        self.font = font
+        self.stroke_color = stroke_color
+        self.background_color = background_color
+        self.outline_color = box_outline_color
+        self.baseline = baseline
+        self.align = align
+
+    def is_visible(self, selected: bool, focused: bool) -> bool:
+        if self.visibility == "always":
+            return True
+        elif self.visibility == "selected":
+            return selected
+        elif self.visibility == "focused":
+            return focused
+        return False
+
+def draw_text(ctx: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, text: str, properties: TextProperties, position: Geometry.FloatPoint, is_selected: bool, is_focused: bool) -> None:
+    if not properties.is_visible(is_selected, is_focused):
+        return
+
+    def _get_text_rectangle(margin: int = 1) -> Geometry.FloatRect:
+        """Gets the rectangle that surrounds a text string
+
+        The positions returned are offset by x, y.
+        The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise middle
+        Margin is added to the x-axis
+        """
+        metrics = ui_settings.get_font_metrics(properties.font, text)
+        width = float(metrics.width) + 2 * margin  # Margin around the text for legibility
+        ascent = float(metrics.ascent)
+        descent = float(metrics.descent)
+        height = ascent + descent
+
+        if properties.baseline == "top":
+            y_pos = y + ascent
+        elif properties.baseline == "bottom":
+            y_pos = y  # There is a bug in nionui-tool that means 'bottom' baseline is actually alphabetic. Should be - descent
+        elif properties.baseline == "middle":
+            y_pos = y + descent
+        else:  # alphabetic or ideographic
+            y_pos = y
+        rect_top = y_pos - ascent
+        if properties.align == "right":
+            rect_left = x - width + margin
+        elif properties.align == "left":
+            rect_left = x - margin
+        else:  # center
+            rect_left = x - width / 2.0
+
+        return Geometry.FloatRect.from_tlhw(rect_top, rect_left, height, width)
+
+    with ctx.saver():
+        y, x = position
+        ctx.text_baseline = properties.baseline
+        ctx.text_align = properties.align
+
+        label_rect = _get_text_rectangle()
+
+        # Draw the text background
+        ctx.move_to(label_rect.left, label_rect.top)
+        ctx.line_to(label_rect.right, label_rect.top)
+        ctx.line_to(label_rect.right, label_rect.bottom)
+        ctx.line_to(label_rect.left, label_rect.bottom)
+        ctx.line_to(label_rect.left, label_rect.top)
+
+        if properties.background_color is not None:
+            ctx.fill_style = properties.background_color
+            ctx.fill()
+
+        if properties.outline_color is not None:
+            ctx.stroke_style = properties.background_color
+            ctx.stroke()
+
+        ctx.fill_style = properties.stroke_color
+        ctx.fill_text(text, x, y)
+
 
 def create_mask_data(graphics: typing.Sequence[Graphic], shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint) -> DataAndMetadata._ImageDataType:
     mask = None
