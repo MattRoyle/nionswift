@@ -718,12 +718,51 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
-        self.text_properties = {"label":TextProperties(background_color="rgba(255, 255, 255, 0.6)", box_outline_color="#F80", padding=4)}
-        self.label_padding = 4
-        self.label_font = "normal 11px serif"
+
+        style = {
+            "text": {
+                "visibility": "always",
+                "font": "normal 11px serif",
+                "stroke_color": "black",
+                "background_color": "",
+                "box_outline_color": "",
+                "baseline": "center",
+                "align": "center",
+                "padding": "2"
+            },
+            "text#label":{
+                "background_color": "rgba(255, 255, 255, 0.6)",
+                "box_outline_color": "#F80",
+                "padding": "4"
+            }
+        }
+        self.define_property("style", style, changed=self._property_changed, validate=to_str, hidden=True)
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
         self._default_drag_part = "all"
+
+    @property
+    def style(self) -> dict[str, dict[str, str]]:
+        return typing.cast(dict[str, dict[str, str]], self._get_persistent_property_value("style"))
+
+    @style.setter
+    def style(self, style: dict[str, dict[str, str]]) -> None:
+        self._set_persistent_property_value("style", style)
+
+    def used_style_property_value(self, property_name: str, element_type: str | None = None, element_id: str | None = None) -> str | None:
+        cascade_order = []
+        if element_type is not None:
+            cascade_order.append(element_type)
+        if element_id is not None:
+            cascade_order.append(element_id)
+
+        while cascade_order:
+            value = self.style.get("#".join(cascade_order), dict()).get(property_name, None)
+            if value is None:
+                cascade_order.pop(-1)
+            else:
+                return value
+        return None
 
     def update_uuids(self, uuid_map: dict[uuid.UUID, uuid.UUID]) -> None:
         assert not self.persistent_object_context
@@ -1025,12 +1064,10 @@ class GraphicRenderer:
         self.used_stroke_width = graphic.used_stroke_width
         self.used_fill_style = graphic.used_fill_style
         self.label = graphic.label
-        self.label_padding = graphic.label_padding
-        self.label_font = graphic.label_font
         self.is_position_locked = graphic.is_position_locked
         self.is_shape_locked = graphic.is_shape_locked
         self.is_rotation_locked = graphic.is_rotation_locked
-        self.text_properties = graphic.text_properties
+        self.used_style_property_value_fn = graphic.used_style_property_value
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         raise NotImplementedError()
@@ -1049,10 +1086,10 @@ class GraphicRenderer:
         return False
 
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        label_properties = self.text_properties["label"]
-        if self.label and self.is_label_visible(label_properties.visibility, is_selected, is_focused):
+        text_properties = TextProperties(self.used_style_property_value_fn, "label")
+        if self.label and text_properties.is_visible(is_selected, is_focused):
             position = self.label_position(mapping, ui_settings.get_font_metrics(self.label_font, self.label), self.label_padding) or Geometry.FloatPoint()
-            draw_text(ctx, ui_settings, self.label, label_properties, position, is_selected, is_focused)
+            draw_text(ctx, ui_settings, self.label, "label", self.used_style_property_value_fn, position, is_selected, is_focused)
 
 
 class MissingGraphic(Graphic):
@@ -3299,17 +3336,15 @@ class LatticeGraphicRenderer(GraphicRenderer):
 
 
 class TextProperties:
-    def __init__(self, visibility: str = "always", font: str = "normal 11px serif",
-                 stroke_color: str = "black", background_color: str | None = None,
-                 box_outline_color: str | None = None, baseline: str = "center", align: str = "center", padding: int = 0) -> None:
-        self.visibility = visibility
-        self.font = font
-        self.stroke_color = stroke_color
-        self.background_color = background_color
-        self.outline_color = box_outline_color
-        self.baseline = baseline
-        self.align = align
-        self.padding = padding
+    def __init__(self, used_style_property_value_fn: typing.Callable[[str, str | None, str | None], str | None], element_name: str | None) -> None:
+        self.visibility = used_style_property_value_fn("visibility", "text", element_name)
+        self.font = used_style_property_value_fn("font", "text", element_name)
+        self.stroke_color = used_style_property_value_fn("stroke_color", "text", element_name)
+        self.background_color = used_style_property_value_fn("background_color", "text", element_name)
+        self.outline_color = used_style_property_value_fn("box_outline_color", "text", element_name)
+        self.baseline = used_style_property_value_fn("baseline", "text", element_name)
+        self.align = used_style_property_value_fn("align", "text", element_name)
+        self.padding = used_style_property_value_fn("padding", "text", element_name)
 
     def is_visible(self, selected: bool, focused: bool) -> bool:
         if self.visibility == "always":
