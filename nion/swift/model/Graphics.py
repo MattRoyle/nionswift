@@ -749,7 +749,8 @@ class Graphic(Persistence.PersistentObject):
     def style(self, style: dict[str, dict[str, str]]) -> None:
         self._set_persistent_property_value("style", style)
 
-    def used_style_property_value(self, property_name: str, element_type: str | None = None, element_id: str | None = None) -> str | None:
+    @staticmethod
+    def used_style_property_value(style: dict[str, dict[str, str]], property_name: str, element_type: str | None = None, element_id: str | None = None) -> str | None:
         cascade_order = []
         if element_type is not None:
             cascade_order.append(element_type)
@@ -757,7 +758,7 @@ class Graphic(Persistence.PersistentObject):
             cascade_order.append(element_id)
 
         while cascade_order:
-            value = self.style.get("#".join(cascade_order), dict()).get(property_name, None)
+            value = style.get("#".join(cascade_order), dict()).get(property_name, None)
             if value is None:
                 cascade_order.pop(-1)
             else:
@@ -1067,7 +1068,7 @@ class GraphicRenderer:
         self.is_position_locked = graphic.is_position_locked
         self.is_shape_locked = graphic.is_shape_locked
         self.is_rotation_locked = graphic.is_rotation_locked
-        self.used_style_property_value_fn = graphic.used_style_property_value
+        self.style = graphic.style
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         raise NotImplementedError()
@@ -1086,10 +1087,10 @@ class GraphicRenderer:
         return False
 
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        text_properties = TextProperties(self.used_style_property_value_fn, "label")
+        text_properties = TextProperties("label", self.style)
         if self.label and text_properties.is_visible(is_selected, is_focused):
-            position = self.label_position(mapping, ui_settings.get_font_metrics(self.label_font, self.label), self.label_padding) or Geometry.FloatPoint()
-            draw_text(ctx, ui_settings, self.label, "label", self.used_style_property_value_fn, position, is_selected, is_focused)
+            position = self.label_position(mapping, ui_settings.get_font_metrics(text_properties.font, self.label), text_properties.padding) or Geometry.FloatPoint()
+            draw_text(ctx, ui_settings, self.label, text_properties, position, is_selected, is_focused)
 
 
 class MissingGraphic(Graphic):
@@ -3336,15 +3337,15 @@ class LatticeGraphicRenderer(GraphicRenderer):
 
 
 class TextProperties:
-    def __init__(self, used_style_property_value_fn: typing.Callable[[str, str | None, str | None], str | None], element_name: str | None) -> None:
-        self.visibility = used_style_property_value_fn("visibility", "text", element_name)
-        self.font = used_style_property_value_fn("font", "text", element_name)
-        self.stroke_color = used_style_property_value_fn("stroke_color", "text", element_name)
-        self.background_color = used_style_property_value_fn("background_color", "text", element_name)
-        self.outline_color = used_style_property_value_fn("box_outline_color", "text", element_name)
-        self.baseline = used_style_property_value_fn("baseline", "text", element_name)
-        self.align = used_style_property_value_fn("align", "text", element_name)
-        self.padding = used_style_property_value_fn("padding", "text", element_name)
+    def __init__(self, element_name: str | None, style: dict[str, dict[str, str]]) -> None:
+        self.visibility = Graphic.used_style_property_value(style, "visibility", "text", element_name)
+        self.font = Graphic.used_style_property_value(style, "font", "text", element_name)
+        self.stroke_color = Graphic.used_style_property_value(style, "stroke_color", "text", element_name)
+        self.background_color = Graphic.used_style_property_value(style, "background_color", "text", element_name)
+        self.outline_color = Graphic.used_style_property_value(style, "box_outline_color", "text", element_name)
+        self.baseline = Graphic.used_style_property_value(style, "baseline", "text", element_name)
+        self.align = Graphic.used_style_property_value(style, "align", "text", element_name)
+        self.padding = Graphic.used_style_property_value(style, "padding", "text", element_name)
 
     def is_visible(self, selected: bool, focused: bool) -> bool:
         if self.visibility == "always":
