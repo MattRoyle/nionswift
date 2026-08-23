@@ -562,7 +562,7 @@ class MasterDetailHandler(Declarative.Handler):
         self.__items_key = items_key
 
         # the labels property model converts the titles model to a single property: a list of strings.
-        self.labels_property_model = MappedPropertyListModel(self.items_model, title_property, property_value_fallback=title_fallback)
+        self.labels_property_model = MappedPropertyListModel(self.items_model, title_property, parent_items_key=items_key, property_value_fallback=title_fallback)
 
         # set up a shadow list following the model/items_key
 
@@ -647,7 +647,8 @@ class MasterDetailHandler(Declarative.Handler):
     def create_handler(self, component_id: str, container: typing.Optional[ListModel.ListModel[Declarative.HandlerLike]] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "detail":
             assert container
-            handler = typing.cast(Declarative.HandlerLike, self.shadow_items.items[container.items.index(item)])
+            container_items = getattr(container, self.__items_key)
+            handler = typing.cast(Declarative.HandlerLike, self.shadow_items.items[container_items.index(item)])
             self._detail_components[item] = handler
             return handler
         return None
