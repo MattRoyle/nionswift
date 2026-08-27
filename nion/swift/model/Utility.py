@@ -476,7 +476,7 @@ def get_filename_illegal_chars_error(filename: str)  -> typing.Sequence[str] | N
     if illegal_chars:
         errors.append(_("Contains illegal character(s) {characters}").format(characters=", ".join(illegal_chars)))
 
-    return errors
+    return errors or None
 
 
 def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[bool, typing.Sequence[str] | None]:
