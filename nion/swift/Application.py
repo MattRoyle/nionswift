@@ -705,7 +705,7 @@ class Application(UIApplication.BaseApplication):
                     # to ensure the application does not close upon closing the last window, force it
                     # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
-                        NewProjectAction(accept_fn=self.close_window).invoke(UIWindow.ActionContext(self.__application, self.window, None))
+                        NewProjectAction().invoke(UIWindow.ActionContext(self.__application, self.window, None))
 
                 def open_project(self, widget: Declarative.UIWidget) -> None:
                     # to ensure the application does not close upon closing the last window, force it
@@ -973,12 +973,8 @@ class NewProjectAction(UIWindow.Action):
 
     Calling invoke will cause a UI window to appear prompting the name of the new project which calls execute with the name provided.
     Calling execute uses the stored name to get the application to create a new project.
-    The accept_fn if provided is called before execute when the new project button is clicked in the UI window.
+    If the window is provided in the action context, it will be closed before the new project is created.
     """
-    def __init__(self, accept_fn: typing.Callable[[], None] | None = None) -> None:
-        super().__init__()
-        self.accept_fn = accept_fn
-
     action_id = "project.new_project"
     action_name = _("New Project...")
     check_project_name_is_available = FileStorageSystem.check_file_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
@@ -1002,7 +998,10 @@ class NewProjectAction(UIWindow.Action):
 
     def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         application = typing.cast(Application, context.application)
+        window = context.window
         with application.prevent_close():
+            if window is not None:
+                window.request_close()
             project_name = self.get_string_property(context, "name")
             directory = self.get_string_property(context, "directory")
             assert project_name is not None
@@ -1017,8 +1016,6 @@ class NewProjectAction(UIWindow.Action):
         project_title = self.get_project_base_name(directory)
 
         def handle_create_clicked(new_name: str, new_directory: str) -> None:
-            if callable(self.accept_fn):
-                self.accept_fn()
             self.set_string_property(context, "name", new_name)
             self.set_string_property(context, "directory", new_directory)
             self.execute(context)
