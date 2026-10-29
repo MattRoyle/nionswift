@@ -3668,6 +3668,12 @@ class WorkspaceRemoveAction(Window.Action):
                                            parent_rect=workspace_controller.get_workspace_rect())
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
+    def tool_tip(self, context: Window.ActionContext) -> str | None:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        return "Delete the current workspace.\n"+ _("Display panels in '") + workspace_controller._workspace.name + _("' will be deleted. The data will not be deleted.")
+
 
 class WorkspaceRenameAction(Window.Action):
     action_id = "workspace.rename"
