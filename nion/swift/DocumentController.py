@@ -3705,6 +3705,9 @@ class WorkspaceRenameAction(Window.Action):
                                           parent_rect=workspace_controller.get_workspace_rect())
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
+    def tool_tip(self, context: Window.ActionContext) -> str | None:
+        return "Rename the current workspace."
+
 
 class WorkspaceResetAction(Window.Action):
     action_id = "workspace.1x1"
@@ -3901,6 +3904,9 @@ class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
         elif display_item:
             return _("New Workspace From Item") + f" \"{display_item.displayed_title}\""
         return self.action_name
+
+    def tool_tip(self, context: Window.ActionContext) -> str:
+        return "Create a new workspace then insert the selected items in a 5:3 ratio grid."
 
 
 Window.register_action(WorkspaceChangeSplits())
